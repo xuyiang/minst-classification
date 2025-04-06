@@ -2,7 +2,7 @@
 from torch import nn
 from torch.nn import functional as F
 
-from models import BasicModule
+from .BasicModel import BasicModule
 
 
 class ResidualBlock(nn.Module):
@@ -38,18 +38,17 @@ class ResNet34(BasicModule):
         super(ResNet34, self).__init__()
         self.model_name = 'resnet34'
 
-        # 前几层: 图像转换
+        # 前几层: 图像转换 - 修改卷积核大小和步长以适应28x28的输入
         self.pre = nn.Sequential(
-            nn.Conv2d(1, 64, 7, 2, 3, bias=False),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, 2, 1))
+            nn.Conv2d(1, 32, 3, 1, 1, bias=False),  # 改为3x3卷积核，步长1，通道数减少
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True))
 
-        # 重复的layer，分别有3，4，6，3个residual block
-        self.layer1 = self._make_layer(64, 128, 3)
-        self.layer2 = self._make_layer(128, 256, 4, stride=2)
-        self.layer3 = self._make_layer(256, 512, 6, stride=2)
-        self.layer4 = self._make_layer(512, 512, 3, stride=2)
+        # 重复的layer，分别有3，4，6，3个residual block，但通道数减少
+        self.layer1 = self._make_layer(32, 64, 3)
+        self.layer2 = self._make_layer(64, 128, 4, stride=2)
+        self.layer3 = self._make_layer(128, 256, 6, stride=2)
+        self.layer4 = self._make_layer(256, 512, 3, stride=2)
 
         # 分类用的全连接
         self.fc = nn.Linear(512, num_classes)
@@ -70,13 +69,13 @@ class ResNet34(BasicModule):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.pre(x)
+        x = self.pre(x)  # 28x28 -> 28x28
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        x = self.layer1(x)  # 28x28 -> 28x28
+        x = self.layer2(x)  # 28x28 -> 14x14
+        x = self.layer3(x)  # 14x14 -> 7x7
+        x = self.layer4(x)  # 7x7 -> 4x4
 
-        x = F.avg_pool2d(x, 7)
+        x = F.adaptive_avg_pool2d(x, 1)  # 4x4 -> 1x1
         x = x.view(x.size(0), -1)
         return self.fc(x)
